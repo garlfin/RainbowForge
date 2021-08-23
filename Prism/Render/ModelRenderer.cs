@@ -118,12 +118,18 @@ namespace Prism.Render
                 var bmp2 = new Bitmap(@ResourceHelper.getResourcePath("radiancevenicematcap.png"));
                 bmp2.LoadGlTexture(RadianceTex, TextureTarget.Texture2D);
 
+                var ReflectTex = GL.GenTexture();
+                var BmpReflect = new Bitmap(@ResourceHelper.getResourcePath("venice_sunset_2k.png"));
+                BmpReflect.LoadGlTexture(ReflectTex, TextureTarget.Texture2D);
+
                 GL.ActiveTexture(TextureUnit.Texture2);
                 GL.BindTexture(TextureTarget.Texture2D, TextureTest);
                 GL.ActiveTexture(TextureUnit.Texture4);
                 GL.BindTexture(TextureTarget.Texture2D, CheckerUV);
                 GL.ActiveTexture(TextureUnit.Texture3);
                 GL.BindTexture(TextureTarget.Texture2D, RadianceTex);
+                GL.ActiveTexture(TextureUnit.Texture5);
+                GL.BindTexture(TextureTarget.Texture2D, ReflectTex);
 
                 CreateScreenVao();
                 _viewFbo = new Framebuffer(8, _renderContext.DefaultFramebuffer);

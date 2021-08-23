@@ -7,12 +7,14 @@ uniform vec3 colorIn;
 uniform vec3 pos;
 uniform vec3 lightColor;
 uniform sampler2D radianceTex;
+uniform sampler2D reflectTex;
 
 in vec3 fragPos;
 in vec3 fragNormal;
 in vec2 fragTexCoord;
 in vec2 matcapTexCoord;
 
+#define RECIPROCAL_PI2 0.15915494
 
 out vec4 color;
 
@@ -44,6 +46,5 @@ void main()
     vec4 beforeReflection = mix(beforeMatCap,radianceSamp*beforeMatCap,0.75);
     
     color = mix(beforeReflection,beforeReflection*samp,0.2);
-    //color = samp;
     
 }
