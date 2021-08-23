@@ -1,17 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
-using BrightIdeasSoftware;
 using JeremyAnsel.Media.WavefrontObj;
-using OpenTK;
-using OpenTK.Graphics;
 using Pfim;
-using Prism.Controls;
 using Prism.Extensions;
 using Prism.Render;
 using RainbowForge;
@@ -21,32 +15,15 @@ using RainbowForge.Core.Container;
 using RainbowForge.Dump;
 using RainbowForge.Image;
 using RainbowForge.Info;
+using RainbowForge.Link;
 using RainbowForge.Model;
 using RainbowForge.RenderPipeline;
 using SkiaSharp;
-using SkiaSharp.Views.Desktop;
-using Color4 = RainbowForge.Model.Color4;
 
 namespace Prism
 {
-	public class PrismForm : Form
+	public partial class PrismForm : Form
 	{
-		private readonly ToolStripLabel _statusForgeInfo;
-
-		private readonly ToolStripMenuItem _bOpenForge;
-		private readonly ToolStripMenuItem _bResetViewport;
-
-		private readonly ToolStripMenuItem _bDumpAsBin;
-		private readonly ToolStripMenuItem _bDumpAsDds;
-		private readonly ToolStripMenuItem _bDumpAsObj;
-
-		private readonly TreeListView _assetList;
-		private readonly MinimalSplitContainer _splitContainer;
-		private readonly GLControl _glControl;
-		private readonly SKControl _imageControl;
-		private readonly TreeListView _infoControl;
-		private readonly TextBox _errorInfoControl;
-
 		private ModelRenderer _renderer3d;
 		private SurfaceRenderer _renderer2d;
 
@@ -88,162 +65,6 @@ namespace Prism
 
 				_statusForgeInfo.Text = sb.ToString();
 			}
-		}
-
-		public PrismForm()
-		{
-			using (this.SuspendPainting())
-			{
-				AutoScaleMode = AutoScaleMode.Font;
-				ClientSize = new Size(800, 450);
-				Text = "Prism";
-
-				SuspendLayout();
-
-				Controls.Add(_splitContainer = new MinimalSplitContainer
-				{
-					Dock = DockStyle.Fill,
-					SplitterDistance = 450,
-					Panel1 =
-					{
-						Controls =
-						{
-							(_assetList = new TreeListView
-							{
-								Dock = DockStyle.Fill,
-								View = View.Details,
-								ShowGroups = false,
-								FullRowSelect = true
-							})
-						}
-					}
-				});
-
-				Controls.Add(new MenuStrip
-				{
-					Dock = DockStyle.Top,
-					Renderer = new FlatToolStripRenderer(),
-
-					Items =
-					{
-						new ToolStripDropDownButton
-						{
-							Text = "&File",
-							DropDownItems =
-							{
-								(_bOpenForge = new ToolStripMenuItem("&Open Forge")
-								{
-									ShortcutKeys = Keys.Control | Keys.O
-								})
-							}
-						},
-						new ToolStripDropDownButton
-						{
-							Text = "&Dump",
-							DropDownItems =
-							{
-								(_bDumpAsBin = new ToolStripMenuItem("&Binary file")),
-								new ToolStripSeparator(),
-								(_bDumpAsDds = new ToolStripMenuItem("&DirectDraw Surface")),
-								new ToolStripSeparator(),
-								(_bDumpAsObj = new ToolStripMenuItem("&Wavefront OBJ"))
-							}
-						},
-						new ToolStripDropDownButton
-						{
-							Text = "&View",
-							DropDownItems =
-							{
-								(_bResetViewport = new ToolStripMenuItem("&Reset 3D Viewport"))
-							}
-						}
-					}
-				});
-
-				Controls.Add(new StatusStrip
-				{
-					Dock = DockStyle.Bottom,
-					Items =
-					{
-						(_statusForgeInfo = new ToolStripLabel("Ready"))
-					}
-				});
-
-				_glControl = new GLControl(new GraphicsMode(new ColorFormat(8), 24, 8, 1))
-				{
-					Dock = DockStyle.Fill,
-					VSync = true
-				};
-
-				_imageControl = new SKControl
-				{
-					Dock = DockStyle.Fill
-				};
-
-				_infoControl = new TreeListView
-				{
-					Dock = DockStyle.Fill,
-					View = View.Details,
-					ShowGroups = false,
-					FullRowSelect = true
-				};
-
-				_errorInfoControl = new TextBox
-				{
-					Multiline = true,
-					Dock = DockStyle.Fill,
-					ReadOnly = true,
-					BackColor = Color.White,
-					ForeColor = Color.Red
-				};
-
-				SetPreviewPanel(new Label
-				{
-					Dock = DockStyle.Fill,
-					TextAlign = ContentAlignment.MiddleCenter,
-					Text = "Open a Forge to get started."
-				});
-
-				ResumeLayout(true);
-			}
-
-			_bOpenForge.Click += (sender, args) =>
-			{
-				var ofd = new OpenFileDialog
-				{
-					Filter = "Forge Files|*.forge"
-				};
-
-				if (ofd.ShowDialog() != DialogResult.OK)
-					return;
-
-				OpenForge(ofd.FileName);
-			};
-
-			_bResetViewport.Click += (sender, args) => _renderer3d.ResetView();
-
-			_bDumpAsBin.Click += CreateDumpEventHandler("Binary Files|*.bin", DumpSelectionAsBin);
-			_bDumpAsDds.Click += CreateDumpEventHandler("DirectDraw Surfaces|*.dds", DumpSelectionAsDds);
-			_bDumpAsObj.Click += CreateDumpEventHandler("Wavefront OBJs|*.obj", DumpSelectionAsObj);
-
-			SetupRenderer();
-			SetupAssetList();
-
-			UpdateAbility(null);
-		}
-
-		private static EventHandler CreateDumpEventHandler(string filter, Action<string> action)
-		{
-			return (_, _) =>
-			{
-				var sfd = new SaveFileDialog
-				{
-					Filter = filter
-				};
-
-				if (sfd.ShowDialog() == DialogResult.OK)
-					action(sfd.FileName);
-			};
 		}
 
 		private void DumpSelectionAsBin(string fileName)
@@ -314,6 +135,16 @@ namespace Prism
 			DumpHelper.DumpBin(fileName, ddsStream);
 		}
 
+		private static AssetMetaData GetAssetMetaData(object o)
+		{
+			return o switch
+			{
+				Entry e => new AssetMetaData(e.Uid, e.MetaData.FileType, 0, e.MetaData.FileName),
+				FlatArchiveEntry fae => new AssetMetaData(fae.MetaData.Uid, fae.MetaData.FileType, fae.MetaData.ContainerType, fae.MetaData.FileName),
+				_ => null
+			};
+		}
+
 		private AssetStream GetAssetStream(object o)
 		{
 			switch (o)
@@ -324,8 +155,8 @@ namespace Prism
 
 					return container switch
 					{
-						ForgeAsset forgeAsset => new AssetStream(entry.Uid, entry.MetaData.FileType, entry.MetaData.FileName, () => forgeAsset.GetDataStream(_openedForge)),
-						_ => new AssetStream(entry.Uid, entry.MetaData.FileType, entry.MetaData.FileName, () => _openedForge.GetEntryStream(entry))
+						ForgeAsset forgeAsset => new AssetStream(AssetStreamType.ForgeEntry, GetAssetMetaData(entry), () => forgeAsset.GetDataStream(_openedForge)),
+						_ => new AssetStream(AssetStreamType.ForgeEntry, GetAssetMetaData(entry), () => _openedForge.GetEntryStream(entry))
 					};
 				}
 				case FlatArchiveEntry flatArchiveEntry:
@@ -334,7 +165,7 @@ namespace Prism
 					if (container is not ForgeAsset forgeAsset)
 						return null;
 
-					return new AssetStream(flatArchiveEntry.MetaData.Uid, flatArchiveEntry.MetaData.FileType, flatArchiveEntry.MetaData.FileName,
+					return new AssetStream(AssetStreamType.ArchiveEntry, GetAssetMetaData(flatArchiveEntry),
 						() =>
 						{
 							using var assetStream = forgeAsset.GetDataStream(_openedForge);
@@ -347,248 +178,9 @@ namespace Prism
 			return null;
 		}
 
-		private void SetPreviewPanel(Control control)
-		{
-			using (_splitContainer.Panel2.SuspendPainting())
-			{
-				_splitContainer.Panel2.Controls.Clear();
-				_splitContainer.Panel2.Controls.Add(control);
-			}
-		}
-
-		private void SetupRenderer()
-		{
-			_renderer2d = new SurfaceRenderer(_imageControl);
-			_imageControl.MouseMove += (sender, args) => _renderer2d.OnMouseMove(args.Location, (args.Button & MouseButtons.Left) != 0);
-			_imageControl.MouseWheel += (sender, args) => _renderer2d.OnMouseWheel(args.Location, args.Delta);
-
-			_imageControl.PaintSurface += (sender, args) => { _renderer2d.Render(args); };
-
-			_renderer3d = new ModelRenderer(new GlControlContext(_glControl));
-			_glControl.MouseDown += (sender, args) => _renderer3d.OnMouseDown(args.Location);
-			_glControl.MouseMove += (sender, args) => _renderer3d.OnMouseMove(args.Location, (args.Button & MouseButtons.Left) != 0, (args.Button & MouseButtons.Right) != 0);
-			_glControl.MouseWheel += (sender, args) => _renderer3d.OnMouseWheel(args.Delta);
-
-			_glControl.Paint += (sender, args) =>
-			{
-				_glControl.MakeCurrent();
-				_renderer3d.Render();
-				_glControl.SwapBuffers();
-			};
-
-			_infoControl.Columns.Add(new OLVColumn("Key", nameof(TreeListViewEntry.Key))
-			{
-				Width = 200
-			});
-			_infoControl.Columns.Add(new OLVColumn("Value", nameof(TreeListViewEntry.Value))
-			{
-				FillsFreeSpace = true
-			});
-			_infoControl.CanExpandGetter = model => model is TreeListViewEntry tlve && tlve.Children.Length > 0;
-			_infoControl.ChildrenGetter = model => model is TreeListViewEntry tlve ? tlve.Children : null;
-		}
-
-		private void SetupAssetList()
-		{
-			_assetList.Columns.Add(new OLVColumn("Filename", null)
-			{
-				Width = 100,
-				AspectGetter = rowObject =>
-				{
-					return rowObject switch
-					{
-						Entry e => e.MetaData.FileName,
-						FlatArchiveEntry fae => fae.MetaData.FileName,
-						_ => ""
-					};
-				}
-			});
-
-			_assetList.Columns.Add(new OLVColumn("Type", null)
-			{
-				Width = 100,
-				AspectGetter = rowObject =>
-				{
-					(ulong type, ulong uid) fileType = rowObject switch
-					{
-						Entry e => (e.MetaData.FileType, e.Uid),
-						FlatArchiveEntry fae => (fae.MetaData.FileType, fae.MetaData.Uid),
-						_ => (0, 0)
-					};
-
-					return fileType;
-				},
-				AspectToStringConverter = value =>
-				{
-					var (type, uid) = (ValueTuple<ulong, ulong>)value;
-
-					if (Enum.IsDefined(typeof(Magic), type))
-					{
-						var m = (Magic)type;
-						if (m == Magic.Metadata)
-						{
-							var container = _openedForge.GetContainer(uid);
-							switch (container)
-							{
-								case Hash:
-									return $"[{nameof(Hash)}]";
-								case Descriptor:
-									return $"[{nameof(Descriptor)}]";
-							}
-						}
-
-						return m.ToString();
-					}
-
-					return type.ToString("X");
-				}
-			});
-
-			_assetList.Columns.Add(new OLVColumn("Size", null)
-			{
-				Width = 70,
-				AspectGetter = rowObject =>
-				{
-					uint size = rowObject switch
-					{
-						Entry e => e.Size,
-						FlatArchiveEntry fae => (uint)fae.PayloadLength,
-						_ => 0
-					};
-
-					return size;
-				},
-				AspectToStringConverter = value => ((uint)value).ToFileSizeString()
-			});
-
-			_assetList.Columns.Add(new OLVColumn("UID", null)
-			{
-				Width = 210,
-				AspectGetter = rowObject =>
-				{
-					return rowObject switch
-					{
-						Entry e => e.Uid,
-						FlatArchiveEntry fae => fae.MetaData.Uid,
-						_ => null
-					};
-				},
-				AspectToStringConverter = value => $"{value:X16}"
-			});
-
-			_assetList.SelectedIndexChanged += OnAssetListOnSelectionChanged;
-
-			_assetList.CanExpandGetter = model => { return model is Entry e && MagicHelper.GetFiletype(e.MetaData.FileType) == AssetType.FlatArchive; };
-
-			_assetList.ChildrenGetter = model =>
-			{
-				if (model is not Entry e || MagicHelper.GetFiletype(e.MetaData.FileType) != AssetType.FlatArchive)
-					return null;
-
-				var container = _openedForge.GetContainer(e.Uid);
-				if (container is not ForgeAsset forgeAsset) throw new InvalidDataException("Container is not asset");
-
-				var assetStream = forgeAsset.GetDataStream(_openedForge);
-				var fa = FlatArchive.Read(assetStream);
-
-				foreach (var entry in fa.Entries) _flatArchiveEntryMap[entry.MetaData.Uid] = e.Uid;
-
-				return fa.Entries;
-			};
-
-			_assetList.CellRightClick += (sender, args) =>
-			{
-				string name;
-				ulong uid;
-				uint fileType;
-
-				var tlv = (TreeListView)sender;
-				switch (tlv.SelectedObject)
-				{
-					case Entry e:
-						name = e.MetaData.FileName;
-						uid = e.Uid;
-						fileType = e.MetaData.FileType;
-						break;
-					case FlatArchiveEntry fae:
-						name = fae.MetaData.FileName;
-						uid = fae.MetaData.Uid;
-						fileType = fae.MetaData.FileType;
-						break;
-					default:
-						return;
-				}
-
-				var bCopyName = new ToolStripMenuItem("&Copy Name");
-				bCopyName.Click += (o, eventArgs) => Clipboard.SetText(name);
-
-				var bCopyUid = new ToolStripMenuItem("&Copy UID");
-				bCopyUid.Click += (o, eventArgs) => Clipboard.SetText($"0x{uid:X16}");
-
-				var bCopyFiletype = new ToolStripMenuItem("&Copy Filetype");
-				bCopyFiletype.Click += (o, eventArgs) => Clipboard.SetText($"0x{fileType:X8}");
-
-				args.MenuStrip = new ContextMenuStrip
-				{
-					Location = Cursor.Position,
-					Items =
-					{
-						bCopyName,
-						bCopyUid,
-						bCopyFiletype
-					}
-				};
-			};
-		}
-
-		private void OnAssetListOnSelectionChanged(object sender, EventArgs args)
-		{
-			var selectedEntry = _assetList.SelectedObject;
-			lock (_openedForge)
-			{
-				var stream = GetAssetStream(selectedEntry);
-				if (stream != null)
-					try
-					{
-						PreviewAsset(stream);
-					}
-					catch (Exception e)
-					{
-						OnUiThread(() =>
-						{
-							_errorInfoControl.Text = e.ToString();
-							SetPreviewPanel(_errorInfoControl);
-						});
-					}
-
-				UpdateAbility(stream);
-			}
-		}
-
-		private void UpdateAbility(AssetStream assetStream)
-		{
-			AssetType type;
-			Magic magic;
-
-			if (assetStream == null)
-			{
-				type = AssetType.Unknown;
-				magic = 0;
-			}
-			else
-			{
-				type = MagicHelper.GetFiletype(assetStream.Magic);
-				magic = (Magic)assetStream.Magic;
-			}
-
-			_bDumpAsBin.Enabled = assetStream != null;
-			_bDumpAsDds.Enabled = type == AssetType.Texture;
-			_bDumpAsObj.Enabled = type == AssetType.Mesh;
-		}
-
 		private void PreviewAsset(AssetStream assetStream)
 		{
-			switch (MagicHelper.GetFiletype(assetStream.Magic))
+			switch (MagicHelper.GetFiletype(assetStream.MetaData.Magic))
 			{
 				case AssetType.Mesh:
 				{
@@ -671,11 +263,35 @@ namespace Prism
 
 					break;
 				}
+				case AssetType.FlatArchive when assetStream.StreamType == AssetStreamType.ArchiveEntry:
+				{
+					// First entry in a flat archive is a UidLinkContainer
+
+					using var stream = assetStream.StreamProvider.Invoke();
+					var container = UidLinkContainer.Read(stream, assetStream.MetaData.ContainerType);
+
+					var entries = new List<TreeListViewEntry>
+					{
+						CreateMetadataInfoNode(assetStream),
+						new(nameof(UidLinkContainer), null,
+							new TreeListViewEntry(nameof(UidLinkContainer.UidLinkEntries), null, container.UidLinkEntries.Select(CreateUidLinkEntryNode).ToArray())
+						)
+					};
+
+					OnUiThread(() =>
+					{
+						_infoControl.SetObjects(entries);
+						_infoControl.ExpandAll();
+						SetPreviewPanel(_infoControl);
+					});
+
+					break;
+				}
 				default:
 				{
 					List<TreeListViewEntry> entries;
 
-					switch ((Magic)assetStream.Magic)
+					switch ((Magic)assetStream.MetaData.Magic)
 					{
 						case Magic.Mesh:
 						{
@@ -684,7 +300,7 @@ namespace Prism
 
 							entries = new List<TreeListViewEntry>
 							{
-								GetMetadataInfoEntry(assetStream.Uid, assetStream.Magic, assetStream.Filename),
+								CreateMetadataInfoNode(assetStream),
 								new(nameof(Mesh), null,
 									new TreeListViewEntry("Var1", mp.Var1),
 									new TreeListViewEntry("Var2", mp.Var2),
@@ -694,6 +310,19 @@ namespace Prism
 							};
 							break;
 						}
+						case Magic.ShaderCodeModuleUserMaterial:
+						case Magic.ShaderCodeModulePostPro:
+						{
+							using var stream = assetStream.StreamProvider.Invoke();
+							var mp = Shader.Read(stream);
+
+							entries = new List<TreeListViewEntry>
+							{
+								CreateMetadataInfoNode(assetStream),
+							};
+
+							break;
+						}
 						case Magic.Material:
 						{
 							using var stream = assetStream.StreamProvider.Invoke();
@@ -701,11 +330,11 @@ namespace Prism
 
 							entries = new List<TreeListViewEntry>
 							{
-								GetMetadataInfoEntry(assetStream.Uid, assetStream.Magic, assetStream.Filename),
+								CreateMetadataInfoNode(assetStream),
 								new(nameof(Material), null,
-									new TreeListViewEntry(nameof(Material.BaseTextureMapSpecs), null, mc.BaseTextureMapSpecs.Select(CreateMipContainerReferenceEntry).ToArray()),
-									new TreeListViewEntry(nameof(Material.SecondaryTextureMapSpecs), null, mc.SecondaryTextureMapSpecs.Select(CreateMipContainerReferenceEntry).ToArray()),
-									new TreeListViewEntry(nameof(Material.TertiaryTextureMapSpecs), null, mc.TertiaryTextureMapSpecs.Select(CreateMipContainerReferenceEntry).ToArray())
+									new TreeListViewEntry(nameof(Material.BaseTextureMapSpecs), null, mc.BaseTextureMapSpecs.Select(CreateMipContainerReferenceNode).ToArray()),
+									new TreeListViewEntry(nameof(Material.SecondaryTextureMapSpecs), null, mc.SecondaryTextureMapSpecs.Select(CreateMipContainerReferenceNode).ToArray()),
+									new TreeListViewEntry(nameof(Material.TertiaryTextureMapSpecs), null, mc.TertiaryTextureMapSpecs.Select(CreateMipContainerReferenceNode).ToArray())
 								)
 							};
 							break;
@@ -717,7 +346,7 @@ namespace Prism
 
 							entries = new List<TreeListViewEntry>
 							{
-								GetMetadataInfoEntry(assetStream.Uid, assetStream.Magic, assetStream.Filename),
+								CreateMetadataInfoNode(assetStream),
 								new(nameof(TextureMapSpec), null,
 									new TreeListViewEntry(nameof(TextureMapSpec.TextureMapUid), $"{mc.TextureMapUid:X16}"),
 									new TreeListViewEntry("TextureType", $"{mc.TextureType:X8}")
@@ -732,7 +361,7 @@ namespace Prism
 
 							entries = new List<TreeListViewEntry>
 							{
-								GetMetadataInfoEntry(assetStream.Uid, assetStream.Magic, assetStream.Filename),
+								CreateMetadataInfoNode(assetStream),
 								new(nameof(TextureMap), null,
 									new TreeListViewEntry("Var1", mc.Var1),
 									new TreeListViewEntry("Var2", mc.Var2),
@@ -751,11 +380,10 @@ namespace Prism
 
 							entries = new List<TreeListViewEntry>
 							{
-								GetMetadataInfoEntry(assetStream.Uid, assetStream.Magic, assetStream.Filename),
+								CreateMetadataInfoNode(assetStream),
 								new(nameof(R6AIWorldComponent), null,
-									new TreeListViewEntry(nameof(R6AIWorldComponent.Areas), null,
-										am.Areas.Select(area => new TreeListViewEntry("Area", null,
-											new TreeListViewEntry("Magic", $"{area.Magic:X8}"),
+									new TreeListViewEntry(nameof(R6AIWorldComponent.Rooms), null,
+										am.Rooms.Select(area => new TreeListViewEntry("Area", null,
 											new TreeListViewEntry("Name", area.Name),
 											new TreeListViewEntry("UIDs", null, area.Uids.Select(arg => new TreeListViewEntry("UID", $"{arg:X16}")).ToArray())
 										)).ToArray()
@@ -768,7 +396,7 @@ namespace Prism
 						{
 							entries = new List<TreeListViewEntry>
 							{
-								GetMetadataInfoEntry(assetStream.Uid, assetStream.Magic, assetStream.Filename)
+								CreateMetadataInfoNode(assetStream),
 							};
 							break;
 						}
@@ -786,15 +414,14 @@ namespace Prism
 			}
 		}
 
-		private void OnUiThread(Action action)
+		private TreeListViewEntry CreateUidLinkEntryNode(UidLinkEntry ule)
 		{
-			if (!InvokeRequired)
-				action();
-			else
-				BeginInvoke(action);
+			var node1 = new TreeListViewEntry(nameof(UidLinkEntry.UidLinkNode1), ule.UidLinkNode1 == null ? "null" : $"{ule.UidLinkNode1.LinkedUid:X16}");
+			var node2 = new TreeListViewEntry(nameof(UidLinkEntry.UidLinkNode2), ule.UidLinkNode2 == null ? "null" : $"{ule.UidLinkNode2.LinkedUid:X16}");
+			return new TreeListViewEntry(nameof(UidLinkNode), null, node1, node2);
 		}
 
-		private TreeListViewEntry CreateMipContainerReferenceEntry(MipContainerReference mcr)
+		private TreeListViewEntry CreateMipContainerReferenceNode(TextureSelector mcr)
 		{
 			return new TreeListViewEntry("MipContainerReference", null,
 				new TreeListViewEntry("Var1", mcr.Var1),
@@ -803,14 +430,14 @@ namespace Prism
 			);
 		}
 
-		private static TreeListViewEntry GetMetadataInfoEntry(ulong uid, ulong fileType, string filename)
+		private static TreeListViewEntry CreateMetadataInfoNode(AssetStream stream)
 		{
 			return new TreeListViewEntry("Metadata", null,
-				new TreeListViewEntry("Filename", filename),
-				new TreeListViewEntry("UID", $"{uid:X16}"),
-				new TreeListViewEntry("FileType", $"{fileType:X8}"),
-				new TreeListViewEntry("Magic", (Magic)fileType),
-				new TreeListViewEntry("AssetType", MagicHelper.GetFiletype(fileType))
+				new TreeListViewEntry("Filename", stream.MetaData.Filename),
+				new TreeListViewEntry("UID", $"{stream.MetaData.Uid:X16}"),
+				new TreeListViewEntry("FileType", $"{stream.MetaData.Magic:X8}"),
+				new TreeListViewEntry("Magic", (Magic)stream.MetaData.Magic),
+				new TreeListViewEntry("AssetType", MagicHelper.GetFiletype(stream.MetaData.Magic))
 			);
 		}
 

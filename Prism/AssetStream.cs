@@ -3,5 +3,5 @@ using System.IO;
 
 namespace Prism
 {
-	internal record AssetStream(ulong Uid, ulong Magic, string Filename, Func<BinaryReader> StreamProvider);
+	internal record AssetStream(AssetStreamType StreamType, AssetMetaData MetaData, Func<BinaryReader> StreamProvider);
 }
