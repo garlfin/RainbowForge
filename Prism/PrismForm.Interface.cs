@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
 using BrightIdeasSoftware;
@@ -20,14 +22,25 @@ namespace Prism
 {
 	public partial class PrismForm
 	{
+		private const string SETTINGS_FILENAME = "settings.json";
+
 		private readonly ToolStripLabel _statusForgeInfo;
 
 		private readonly ToolStripMenuItem _bOpenForge;
 		private readonly ToolStripMenuItem _bResetViewport;
+		private readonly ToolStripMenuItem _bExportPath;
 
-		private readonly ToolStripMenuItem _bDumpAsBin;
-		private readonly ToolStripMenuItem _bDumpAsDds;
-		private readonly ToolStripMenuItem _bDumpAsObj;
+		private readonly ToolStripMenuItem _bDumpAsBinHeader;
+		private readonly ToolStripMenuItem _bDumpAsBinQuick;
+		private readonly ToolStripMenuItem _bDumpAsBinAs;
+
+		private readonly ToolStripMenuItem _bDumpAsDdsHeader;
+		private readonly ToolStripMenuItem _bDumpAsDdsQuick;
+		private readonly ToolStripMenuItem _bDumpAsDdsAs;
+
+		private readonly ToolStripMenuItem _bDumpAsObjHeader;
+		private readonly ToolStripMenuItem _bDumpAsObjQuick;
+		private readonly ToolStripMenuItem _bDumpAsObjAs;
 
 		private readonly TextBox _searchTextBox;
 		private readonly TreeListView _assetList;
@@ -37,6 +50,10 @@ namespace Prism
 		private readonly SKControl _imageControl;
 		private readonly TreeListView _infoControl;
 		private readonly TextBox _errorInfoControl;
+
+		private ToolStripMenuItem _bEditSettings;
+
+		private PrismSettings _settings;
 
 		public PrismForm()
 		{
@@ -67,7 +84,8 @@ namespace Prism
 						}),
 						(_searchTextBox = new TextBox
 						{
-							Dock = DockStyle.Top
+							Dock = DockStyle.Top,
+							PlaceholderText = "Search groups (i.e. keyword, ?type, #uid, seperated by commas)"
 						})
 					}
 				}
@@ -88,19 +106,42 @@ namespace Prism
 							(_bOpenForge = new ToolStripMenuItem("&Open Forge")
 							{
 								ShortcutKeys = Keys.Control | Keys.O
-							})
+							}),
+							new ToolStripSeparator(),
+							(_bEditSettings = new ToolStripMenuItem("&Settings")),
 						}
 					},
 					new ToolStripDropDownButton
 					{
-						Text = "&Dump",
+						Text = "&Export",
 						DropDownItems =
 						{
-							(_bDumpAsBin = new ToolStripMenuItem("&Binary file")),
+							(_bDumpAsBinHeader = new ToolStripMenuItem("&Binary File")
+							{
+								DropDownItems =
+								{
+									(_bDumpAsBinQuick = new ToolStripMenuItem("&Quick Export")),
+									(_bDumpAsBinAs = new ToolStripMenuItem("&Export as...")),
+								}
+							}),
 							new ToolStripSeparator(),
-							(_bDumpAsDds = new ToolStripMenuItem("&DirectDraw Surface")),
+							(_bDumpAsDdsHeader = new ToolStripMenuItem("&DirectDraw Surface")
+							{
+								DropDownItems =
+								{
+									(_bDumpAsDdsQuick = new ToolStripMenuItem("&.dds | Quick Export")),
+									(_bDumpAsDdsAs = new ToolStripMenuItem("&.dds | Export as...")),
+								}
+							}),
 							new ToolStripSeparator(),
-							(_bDumpAsObj = new ToolStripMenuItem("&Wavefront OBJ"))
+							(_bDumpAsObjHeader = new ToolStripMenuItem("&Wavefront OBJ")
+							{
+								DropDownItems =
+								{
+									(_bDumpAsObjQuick = new ToolStripMenuItem("&.obj | Quick Export")),
+									(_bDumpAsObjAs = new ToolStripMenuItem("&.obj | Export as..."))
+								}
+							})
 						}
 					},
 					new ToolStripDropDownButton
@@ -173,32 +214,53 @@ namespace Prism
 				OpenForge(ofd.FileName);
 			};
 
-			_bResetViewport.Click += (sender, args) => _renderer3d.ResetView();
+			_bEditSettings.Click += (sender, args) =>
+			{
+				if (new SettingsForm(SETTINGS_FILENAME).ShowDialog(this) == DialogResult.OK)
+					_settings = PrismSettings.Load(SETTINGS_FILENAME);
+			};
 
-			_bDumpAsBin.Click += CreateDumpEventHandler("Binary Files|*.bin", DumpSelectionAsBin);
-			_bDumpAsDds.Click += CreateDumpEventHandler("DirectDraw Surfaces|*.dds", DumpSelectionAsDds);
-			_bDumpAsObj.Click += CreateDumpEventHandler("Wavefront OBJs|*.obj", DumpSelectionAsObj);
+			_bDumpAsBinQuick.Click += CreateDumpEventHandler(DumpSelectionAsBin);
+			_bDumpAsDdsQuick.Click += CreateDumpEventHandler(DumpSelectionAsDds);
+			_bDumpAsObjQuick.Click += CreateDumpEventHandler(DumpSelectionAsObj);
+
+			_bDumpAsBinAs.Click += CreateDumpEventHandler(DumpSelectionAsBin, true);
+			_bDumpAsDdsAs.Click += CreateDumpEventHandler(DumpSelectionAsDds, true);
+			_bDumpAsObjAs.Click += CreateDumpEventHandler(DumpSelectionAsObj, true);
+
+			_bResetViewport.Click += (sender, args) => _renderer3d.ResetView();
 
 			SetupRenderer();
 			SetupAssetList();
 
 			UpdateAbility(null);
+
+			_settings = PrismSettings.Load(SETTINGS_FILENAME);
 		}
 
-		private static EventHandler CreateDumpEventHandler(string filter, Action<string> action)
+		private EventHandler CreateDumpEventHandler(Action<string, object> action, bool saveAs = false)
 		{
 			return (_, _) =>
 			{
-				var sfd = new SaveFileDialog
-				{
-					Filter = filter
-				};
+				var outputPath = _settings.QuickExportLocation;
 
-				if (sfd.ShowDialog() == DialogResult.OK)
-					action(sfd.FileName);
+				if (saveAs)
+				{
+					var folderBrowserDialog = new FolderBrowserDialog();
+					if (folderBrowserDialog.ShowDialog() != DialogResult.OK)
+						return;
+
+					outputPath = folderBrowserDialog.SelectedPath;
+				}
+
+				Directory.CreateDirectory(outputPath);
+
+				foreach (var selectedObject in _assetList.SelectedObjects)
+				{
+					action(outputPath, selectedObject);
+				}
 			};
 		}
-
 
 		private void SetPreviewPanel(Control control)
 		{
@@ -386,23 +448,44 @@ namespace Prism
 			};
 		}
 
-
 		private static bool DoesEntryMatchFilter(object entry, string filter)
 		{
-			if (string.IsNullOrWhiteSpace(filter))
-				return true;
+			var searchGroups = filter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+			var groupMatches = new List<bool>();
 
 			var meta = GetAssetMetaData(entry);
 
-			if (ulong.TryParse(filter, NumberStyles.HexNumber, Thread.CurrentThread.CurrentCulture, out var filterUid) && filterUid == meta.Uid)
-				return true;
+			foreach (var t in searchGroups)
+			{
+				if (string.IsNullOrWhiteSpace(t))
+				{
+					groupMatches.Add(true);
+					continue;
+				}
 
-			return meta.Filename.Contains(filter, StringComparison.OrdinalIgnoreCase) || (((Magic)meta.Magic).ToString().Contains(filter, StringComparison.OrdinalIgnoreCase));
+				if (t.StartsWith('#') && ulong.TryParse(t[1..], NumberStyles.HexNumber, Thread.CurrentThread.CurrentCulture, out var filterUid) &&
+				    filterUid == meta.Uid)
+				{
+					groupMatches.Add(true);
+					continue;
+				}
+
+				if (t.StartsWith('?'))
+				{
+					groupMatches.Add(((Magic)meta.Magic).ToString().Contains(t[1..], StringComparison.OrdinalIgnoreCase));
+					continue;
+				}
+
+				groupMatches.Add(meta.Filename.Contains(t, StringComparison.OrdinalIgnoreCase));
+			}
+
+			return groupMatches.All(x => x);
 		}
 
 		private void OnAssetListOnSelectionChanged(object sender, EventArgs args)
 		{
-			var selectedEntry = _assetList.SelectedObject;
+			if (_assetList.SelectedObjects.Count < 1) return;
+			var selectedEntry = _assetList.SelectedObjects[0]; // TODO: find a way to get the last selected index to preview the latest selected asset
 			lock (_openedForge)
 			{
 				var stream = GetAssetStream(selectedEntry);
@@ -440,9 +523,9 @@ namespace Prism
 				magic = (Magic)assetStream.MetaData.Magic;
 			}
 
-			_bDumpAsBin.Enabled = assetStream != null;
-			_bDumpAsDds.Enabled = type == AssetType.Texture;
-			_bDumpAsObj.Enabled = type == AssetType.Mesh;
+			_bDumpAsBinHeader.Enabled = assetStream != null;
+			_bDumpAsDdsHeader.Enabled = type == AssetType.Texture;
+			_bDumpAsObjHeader.Enabled = type == AssetType.Mesh;
 		}
 
 		private void OnUiThread(Action action)

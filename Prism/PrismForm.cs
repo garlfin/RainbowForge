@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -67,17 +68,17 @@ namespace Prism
 			}
 		}
 
-		private void DumpSelectionAsBin(string fileName)
+		private void DumpSelectionAsBin(string outputDir, object o)
 		{
-			var streamData = GetAssetStream(_assetList.SelectedObject);
-			using var stream = streamData.StreamProvider.Invoke();
-			DumpHelper.DumpBin(fileName, stream.BaseStream);
+			var (_, assetMetaData, streamProvider) = GetAssetStream(o);
+			using var stream = streamProvider.Invoke();
+			DumpHelper.DumpBin(Path.Combine(outputDir, assetMetaData.Filename + ".bin"), stream.BaseStream);
 		}
 
-		private void DumpSelectionAsObj(string fileName)
+		private void DumpSelectionAsObj(string outputDir, object o)
 		{
-			var streamData = GetAssetStream(_assetList.SelectedObject);
-			using var stream = streamData.StreamProvider.Invoke();
+			var (_, assetMetaData, streamProvider) = GetAssetStream(o);
+			using var stream = streamProvider.Invoke();
 
 			var header = MeshHeader.Read(stream);
 
@@ -85,16 +86,18 @@ namespace Prism
 
 			var obj = new ObjFile();
 
-			for (var objId = 0; objId < compiledMeshObject.Objects.Count; objId++)
-			{
-				var lod = objId / compiledMeshObject.MeshHeader.NumLods;
+			var numObjects = compiledMeshObject.Objects.Count / compiledMeshObject.MeshHeader.NumLods;
 
-				var o = compiledMeshObject.Objects[objId];
-				foreach (var face in o)
+			for (var objId = 0; objId < (_settings.ExportAllModelLods ? compiledMeshObject.Objects.Count : numObjects); objId++)
+			{
+				var lod = objId / numObjects;
+
+				var objObject = compiledMeshObject.Objects[objId];
+				foreach (var face in objObject)
 				{
 					var objFace = new ObjFace
 					{
-						ObjectName = $"lod{lod}_object{objId % compiledMeshObject.MeshHeader.NumLods}"
+						ObjectName = $"{assetMetaData.Filename + (_settings.ExportAllModelLods ? $"_lod{lod}_" : "_")}object{objId % numObjects}"
 					};
 
 					objFace.Vertices.Add(new ObjTriplet(face.A + 1, face.A + 1, face.A + 1));
@@ -120,19 +123,19 @@ namespace Prism
 			foreach (var v in container.TexCoords)
 				obj.TextureVertices.Add(new ObjVector3(v.X, v.Y));
 
-			obj.WriteTo(fileName);
+			obj.WriteTo(Path.Combine(outputDir, assetMetaData.Filename + ".obj"));
 		}
 
-		private void DumpSelectionAsDds(string fileName)
+		private void DumpSelectionAsDds(string outputDir, object o)
 		{
-			var streamData = GetAssetStream(_assetList.SelectedObject);
-			using var stream = streamData.StreamProvider.Invoke();
+			var (_, assetMetaData, streamProvider) = GetAssetStream(o);
+			using var stream = streamProvider.Invoke();
 
 			var texture = Texture.Read(stream);
 			var surface = texture.ReadSurfaceBytes(stream);
 			using var ddsStream = DdsHelper.GetDdsStream(texture, surface);
 
-			DumpHelper.DumpBin(fileName, ddsStream);
+			DumpHelper.DumpBin(Path.Combine(outputDir, assetMetaData.Filename + ".dds"), ddsStream);
 		}
 
 		private static AssetMetaData GetAssetMetaData(object o)
@@ -414,14 +417,14 @@ namespace Prism
 			}
 		}
 
-		private TreeListViewEntry CreateUidLinkEntryNode(UidLinkEntry ule)
+		private static TreeListViewEntry CreateUidLinkEntryNode(UidLinkEntry ule)
 		{
 			var node1 = new TreeListViewEntry(nameof(UidLinkEntry.UidLinkNode1), ule.UidLinkNode1 == null ? "null" : $"{ule.UidLinkNode1.LinkedUid:X16}");
 			var node2 = new TreeListViewEntry(nameof(UidLinkEntry.UidLinkNode2), ule.UidLinkNode2 == null ? "null" : $"{ule.UidLinkNode2.LinkedUid:X16}");
 			return new TreeListViewEntry(nameof(UidLinkNode), null, node1, node2);
 		}
 
-		private TreeListViewEntry CreateMipContainerReferenceNode(TextureSelector mcr)
+		private static TreeListViewEntry CreateMipContainerReferenceNode(TextureSelector mcr)
 		{
 			return new TreeListViewEntry("MipContainerReference", null,
 				new TreeListViewEntry("Var1", mcr.Var1),
