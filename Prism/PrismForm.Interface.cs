@@ -28,7 +28,6 @@ namespace Prism
 
 		private readonly ToolStripMenuItem _bOpenForge;
 		private readonly ToolStripMenuItem _bResetViewport;
-		private readonly ToolStripMenuItem _bExportPath;
 
 		private readonly ToolStripMenuItem _bDumpAsBinHeader;
 		private readonly ToolStripMenuItem _bDumpAsBinQuick;
@@ -112,7 +111,11 @@ namespace Prism
 								ShortcutKeys = Keys.Control | Keys.O
 							}),
 							new ToolStripSeparator(),
-							(_bEditSettings = new ToolStripMenuItem("&Settings")),
+							(_bEditSettings = new ToolStripMenuItem("&Settings")
+							{
+								ShortcutKeys = Keys.Control | Keys.Oemcomma,
+								ShortcutKeyDisplayString = "Ctrl+,"
+							}),
 						}
 					},
 					new ToolStripDropDownButton
@@ -295,7 +298,7 @@ namespace Prism
 
 			_imageControl.PaintSurface += (sender, args) => { _renderer2d.Render(args); };
 
-			_renderer3d = new ModelRenderer(new GlControlContext(_glControl));
+			_renderer3d = new ModelRenderer(new GlControlContext(_glControl), () => _settings);
 			_glControl.MouseDown += (sender, args) => _renderer3d.OnMouseDown(args.Location);
 			_glControl.MouseMove += (sender, args) => _renderer3d.OnMouseMove(args.Location, (args.Button & MouseButtons.Left) != 0, (args.Button & MouseButtons.Right) != 0);
 			_glControl.MouseWheel += (sender, args) => _renderer3d.OnMouseWheel(args.Delta);
@@ -541,7 +544,7 @@ namespace Prism
 
 			_bDumpAsBinHeader.Enabled = assetStream != null;
 			_bDumpAsDdsHeader.Enabled = _bDumpAsPngHeader.Enabled = type == AssetType.Texture;
-			_bDumpAsObjHeader.Enabled = type == AssetType.Mesh;
+			_bDumpAsObjHeader.Enabled = type == AssetType.Mesh || MagicHelper.Equals(Magic.Mesh, magic);
 		}
 
 		private void OnUiThread(Action action)

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 
 namespace RainbowForge.Image
@@ -10,7 +9,7 @@ namespace RainbowForge.Image
 		public long DataStart { get; }
 		public long DdsStart { get; }
 		public uint TexFormat { get; }
-		public uint TexType { get; }
+		public TextureType TexType { get; }
 		public uint ContainerId { get; }
 		public ushort NumBlocks { get; }
 		public long Texsize { get; }
@@ -18,9 +17,11 @@ namespace RainbowForge.Image
 		public uint Mips { get; }
 		public int Width { get; }
 		public int Height { get; }
+		public int Data1 { get; }
+		public int Data2 { get; }
 
-		private Texture(FileMetaData metaData, long dataStart, long ddsStart, uint texFormat, uint texType, uint containerId, ushort numBlocks, long texsize, uint chan, uint mips, int width,
-			int height)
+		private Texture(FileMetaData metaData, long dataStart, long ddsStart, uint texFormat, TextureType texType, uint containerId, ushort numBlocks, long texsize, uint chan, uint mips, int width,
+			int height, int data1, int data2)
 		{
 			MetaData = metaData;
 			DataStart = dataStart;
@@ -34,6 +35,8 @@ namespace RainbowForge.Image
 			Mips = mips;
 			Width = width;
 			Height = height;
+			Data1 = data1;
+			Data2 = data2;
 		}
 
 		public static Texture Read(BinaryReader r)
@@ -52,7 +55,7 @@ namespace RainbowForge.Image
 			var texFormat = r.ReadUInt32(); // [0x00]
 			var x04 = r.ReadUInt32(); // 1
 			var x08 = r.ReadUInt32();
-			var texType = r.ReadUInt32(); // [0x0C] see docstring for details
+			var texType = (TextureType)r.ReadUInt32(); // [0x0C] see docstring for details
 			var x10 = r.ReadUInt32();
 			var x14 = r.ReadUInt32();
 			var x18 = r.ReadUInt32();
@@ -60,10 +63,12 @@ namespace RainbowForge.Image
 			var x20 = r.ReadUInt32(); // 0
 			var x24 = r.ReadUInt32(); // 0
 			var containerId = r.ReadUInt32(); // [0x28] container id
-			var x2C = r.ReadByte(); // [0x2C]
+			MagicHelper.AssertEquals(Magic.CompiledTextureMapData, containerId);
+
+			var data1 = r.ReadByte(); // [0x2C]
 
 			var numBlocks = r.ReadUInt16(); // [0x2D]
-			var x2F = r.ReadByte(); // [0x2F] might indicate whether there is alpha channel in texture (not sure, needs more research)
+			var data2 = r.ReadByte(); // [0x2F] might indicate whether there is alpha channel in texture (not sure, needs more research)
 
 			var x30 = r.ReadUInt32(); // 7
 			var ddsStart = r.BaseStream.Position;
@@ -89,27 +94,16 @@ namespace RainbowForge.Image
 			r.BaseStream.Seek(ddsStart, SeekOrigin.Begin);
 
 			var powChan = Math.Pow(2, chan);
-			var width = (int) Math.Floor(w / powChan);
-			var height = (int) Math.Floor(h / powChan);
+			var width = (int)Math.Floor(w / powChan);
+			var height = (int)Math.Floor(h / powChan);
 
-			return new Texture(header, dataStart, ddsStart, texFormat, texType, containerId, numBlocks, texsize, chan, mips, width, height);
+			return new Texture(header, dataStart, ddsStart, texFormat, texType, containerId, numBlocks, texsize, chan, mips, width, height, data1, data2);
 		}
 
 		public byte[] ReadSurfaceBytes(BinaryReader r)
 		{
 			r.BaseStream.Seek(DdsStart, SeekOrigin.Begin);
-			return r.ReadBytes((int) Texsize);
+			return r.ReadBytes((int)Texsize);
 		}
-
-		// unfinished
-		public static readonly Dictionary<uint, string> TextureMapTypes = new()
-		{
-			{ 0x0, "Diffuse Map" }, // older GUI /skin preview?/ textures sometimes have this type
-			{ 0x1, "Normal Map" }, // not just yellow (RG = XY) ones, head detail (RGA = XYZ) as well
-			{ 0x2, "Specular Map (PBR)" }, // usually holds gloss, metalness and cavity
-			{ 0x3, "GUI/Cubemap/Spritesheet" }, // possibly more
-			{ 0x5, "Normal Map v2" }, // ?
-			{ 0x7, "ID Map" } // internally 'ColorMask'
-		};
 	}
 }

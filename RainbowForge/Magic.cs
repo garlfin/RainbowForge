@@ -1,5 +1,8 @@
-﻿namespace RainbowForge
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace RainbowForge
 {
+	[SuppressMessage("ReSharper", "InconsistentNaming", Justification = "Enum member values are the CRC32 of the exact member name")]
 	public enum Magic : ulong
 	{
 		Metadata = 0,
@@ -12,8 +15,9 @@
 		CompiledHighResolutionTextureMap = 0x59CE4D13,
 		CompiledUltraResolutionTextureMap = 0x9F492D22,
 		CompiledFutureResolutionTextureMap = 0x3876CCDF,
-		TextureGui1 = 0x9468B9E2,
-		TextureGui2 = 0x05A61FAD,
+		CompiledTextureMapData = 0xc30c4b3d,
+		TextureGui0 = 0x9468B9E2,
+		TextureGui1 = 0x05A61FAD,
 		WemSound = 0x427411A3,
 		BuildTable = 0x22ECBE63,
 		BuildColumn = 0x36839608,
@@ -24,6 +28,7 @@
 		WeaponData = 0xADBAB640,
 		GameBootstrap = 0xE5A83560,
 		LocalizationPackage = 0x6E3C9C6F,
+		CompressedLocalizationData = 0xd28389b5,
 		PlatformManager = 0xAE88DE65,
 		World = 0xFBB63E47,
 		LoadUnit = 0x943945C4,
@@ -487,6 +492,7 @@
 		OperatorUnlockable = 0x587515A2,
 		CharmUnlockable = 0x5E78DF4D,
 		GDOUIDescription = 0x51066FDD,
+		GDOUIDescription2 = 0x56C88C7F,
 		SoundExplosionTinnitusData = 0xC10BB5D1,
 		GDOAddTag = 0x9B19F386,
 		RecoilWeaponData = 0xAAC174F3,
@@ -525,6 +531,7 @@
 		R6ActionFilter = 0xc6382399,
 		MeshBone = 0x9ef0e7a1,
 		ShaderCodeVariable = 0x1bcb6f77,
+		PhysicsSDKDataPack = 0x390f5602,
 	}
 
 	public enum ContainerMagic : uint

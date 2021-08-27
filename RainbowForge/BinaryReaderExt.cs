@@ -1,6 +1,7 @@
 ﻿using System.IO;
 using System.Numerics;
 using RainbowForge.Model;
+using RainbowForge.Structs;
 
 namespace RainbowForge
 {
@@ -19,10 +20,10 @@ namespace RainbowForge
 		{
 			const float bias = 0x7FFF;
 
-			var x = (float) r.ReadInt16();
-			var y = (float) r.ReadInt16();
-			var z = (float) r.ReadInt16();
-			var s = (float) r.ReadInt16();
+			var x = (float)r.ReadInt16();
+			var y = (float)r.ReadInt16();
+			var z = (float)r.ReadInt16();
+			var s = (float)r.ReadInt16();
 
 			return new Vector3(x * s / bias, y * s / bias, z * s / bias);
 		}
@@ -53,7 +54,7 @@ namespace RainbowForge
 
 		public static Vector2 ReadUInt32AsUv(this BinaryReader r)
 		{
-			var vec = r.ReadStruct<Vec2H>(4);
+			var vec = r.ReadStruct<Vector2H>(4);
 			return new Vector2((float)vec.X, (float)vec.Y);
 		}
 
@@ -61,7 +62,7 @@ namespace RainbowForge
 		{
 			var buf = new byte[size];
 			if (stream.Read(buf, 0, size) != size)
-				throw new InvalidDataException("Unable to read struct, insufficient data");
+				throw new EndOfStreamException();
 
 			return buf.ToStruct<T>();
 		}
