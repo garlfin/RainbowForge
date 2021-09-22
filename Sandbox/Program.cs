@@ -1,6 +1,6 @@
 ﻿using System;
 using System.IO;
-using RainbowForge.Model;
+using RainbowScimitar.Scimitar;
 
 namespace Sandbox
 {
@@ -8,13 +8,37 @@ namespace Sandbox
 	{
 		private static void Main(string[] args)
 		{
-			using var br = new BinaryReader(File.Open(
-				"C:\\Users\\Admin\\RiderProjects\\RainbowForge\\Prism\\bin\\Debug\\net5.0-windows\\Quick Exports\\Character\\Addon_Shared_Operator_BaseBody_FirstPerson_Reflex3_copy.bin",
-				FileMode.Open));
+			var path = @"R:\Steam\steamapps\common\Tom Clancy's Rainbow Six Siege - Test Server";
+			foreach (var forgeFilename in Directory.GetFiles(path, "*.forge"))
+			{
+				Console.Error.WriteLine(forgeFilename);
 
-			var sk = Skeleton.Read(br);
+				using var fs = File.Open(forgeFilename, FileMode.Open);
+				var bundle = Scimitar.Read(fs);
 
-			Console.WriteLine("Done.");
+				foreach (var (uid, entry) in bundle.EntryMap)
+				{
+					if (!Scimitar.IsFile(uid))
+						continue;
+
+					var fte = bundle.GetFileEntry(entry);
+					var mte = bundle.GetMetaEntry(entry);
+					var name = mte.DecodeName(fte);
+
+					var file = Scimitar.ReadFile(fs, fte);
+					if (file.SubFileData.Length > 1)
+					{
+						using var stream = file.FileData.GetStream(fs);
+
+						for (var i = 0; i < file.SubFileData.Length; i++)
+						{
+							var (subMeta, subStream) = file.GetSubFile(stream, i);
+						}
+					}
+				}
+			}
+
+			Console.Error.WriteLine("Done.");
 		}
 	}
 }

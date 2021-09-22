@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Text;
 using RainbowForge.Core;
 
@@ -21,18 +22,34 @@ namespace RainbowForge
 			Uid = uid;
 		}
 
-		public static FileMetaData Read(BinaryReader r)
+		public static FileMetaData Read(BinaryReader r, uint version)
 		{
-			var metaLen = r.ReadUInt32();
+			switch (version)
+			{
+				case >= 30:
+				{
+					// in AC, a name length with 0x80000000 bit set means encrypted
+					var filenameLength = r.ReadUInt32();
+					var filename = r.ReadBytes((int)filenameLength);
+					var var1 = r.ReadUInt32();
+					var fileType = r.ReadUInt32();
+					var uid = r.ReadUInt64();
 
-			var encodedMeta = r.ReadBytes((int)metaLen);
-			var var1 = r.ReadUInt32();
-			var fileType = r.ReadUInt32();
-			var uid = r.ReadUInt64();
+					var name = NameEncoding.DecodeName(filename, fileType, uid, 0, NameEncoding.FILENAME_ENCODING_FILE_KEY_STEP);
+					return new FileMetaData(Encoding.ASCII.GetString(name), filename, var1, fileType, uid);
+				}
+				case <= 29:
+				{
+					var fileType = r.ReadUInt32();
+					var var1 = r.ReadUInt32();
+					var var2 = r.ReadUInt32();
+					var uid = r.ReadUInt64();
 
-			var name = NameEncoding.DecodeName(encodedMeta, fileType, uid, 0, NameEncoding.FILENAME_ENCODING_FILE_KEY_STEP);
-
-			return new FileMetaData(Encoding.ASCII.GetString(name), encodedMeta, var1, fileType, uid);
+					return new FileMetaData("", Array.Empty<byte>(), var1, fileType, uid);
+				}
+				default:
+					throw new NotImplementedException($"Unsupported version {version}");
+			}
 		}
 	}
 }

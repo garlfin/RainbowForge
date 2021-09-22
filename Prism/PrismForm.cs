@@ -20,6 +20,7 @@ using RainbowForge.Image;
 using RainbowForge.Link;
 using RainbowForge.Model;
 using RainbowForge.RenderPipeline;
+using RainbowForge.Sound;
 using SkiaSharp;
 
 namespace Prism
@@ -83,7 +84,7 @@ namespace Prism
 
 			if (MagicHelper.GetFiletype(assetMetaData.Magic) == AssetType.Mesh)
 			{
-				var header = MeshHeader.Read(stream);
+				var header = MeshHeader.Read(stream, _openedForge.Version);
 
 				var compiledMeshObject = CompiledMeshObject.Read(stream, header);
 
@@ -198,7 +199,7 @@ namespace Prism
 
 			if (MagicHelper.GetFiletype(assetMetaData.Magic) == AssetType.Texture)
 			{
-				var texture = Texture.Read(stream);
+				var texture = Texture.Read(stream, _openedForge.Version);
 				var surface = texture.ReadSurfaceBytes(stream);
 				using var ddsStream = DdsHelper.GetDdsStream(texture, surface);
 
@@ -211,7 +212,7 @@ namespace Prism
 			var (_, assetMetaData, streamProvider) = GetAssetStream(o);
 			using var stream = streamProvider.Invoke();
 
-			var texture = Texture.Read(stream);
+			var texture = Texture.Read(stream, _openedForge.Version);
 			using var image = Pfim.Pfim.FromStream(DdsHelper.GetDdsStream(texture, texture.ReadSurfaceBytes(stream)));
 			using var bmp = image.CreateBitmap();
 
@@ -219,7 +220,7 @@ namespace Prism
 				bmp.RotateFlip(RotateFlipType.RotateNoneFlipY);
 
 			if ((texture.TexType == TextureType.Normal || texture.TexType == TextureType.Misc) &&
-				texture.TexFormat == 0x6)
+			    texture.TexFormat == 0x6)
 			{
 				if (_settings.FlipPngGreenChannel || _settings.RecalculatePngBlueChannel)
 				{
@@ -264,7 +265,7 @@ namespace Prism
 						() =>
 						{
 							using var assetStream = forgeAsset.GetDataStream(_openedForge);
-							var arc = FlatArchive.Read(assetStream);
+							var arc = FlatArchive.Read(assetStream, _openedForge.Version);
 							return arc.GetEntryStream(assetStream.BaseStream, flatArchiveEntry.MetaData.Uid);
 						});
 				}
@@ -280,7 +281,7 @@ namespace Prism
 				case AssetType.Mesh:
 				{
 					using var stream = assetStream.StreamProvider.Invoke();
-					var header = MeshHeader.Read(stream);
+					var header = MeshHeader.Read(stream, _openedForge.Version);
 					var mesh = CompiledMeshObject.Read(stream, header);
 
 					OnUiThread(() =>
@@ -296,10 +297,29 @@ namespace Prism
 
 					break;
 				}
+				case AssetType.Sound:
+				{
+					using var stream = assetStream.StreamProvider.Invoke();
+					var sound = WemSound.Read(stream, _openedForge.Version);
+
+					var entries = new List<TreeListViewEntry>
+					{
+						CreateMetadataInfoNode(assetStream)
+					};
+
+					OnUiThread(() =>
+					{
+						_infoControl.SetObjects(entries);
+						_infoControl.ExpandAll();
+						SetPreviewPanel(_infoControl);
+					});
+
+					break;
+				}
 				case AssetType.Texture:
 				{
 					using var stream = assetStream.StreamProvider.Invoke();
-					var texture = Texture.Read(stream);
+					var texture = Texture.Read(stream, _openedForge.Version);
 					using var image = Pfim.Pfim.FromStream(DdsHelper.GetDdsStream(texture, texture.ReadSurfaceBytes(stream)));
 
 					using (var skImage = image.CreateSkImage())
@@ -524,15 +544,16 @@ namespace Prism
 						continue;
 
 					var archiveStream = fa.GetDataStream(currentForge);
-					var archive = FlatArchive.Read(archiveStream);
+					var archive = FlatArchive.Read(archiveStream, currentForge.Version);
 
-					foreach (var archiveEntry in archive.Entries[1..])	// first archive entry always has the same UID, Magic and Name so we skip it
+					foreach (var archiveEntry in archive.Entries[1..]) // first archive entry always has the same UID, Magic and Name so we skip it
 					{
 						entryMetaData = GetAssetMetaData(archiveEntry);
 						sw.WriteLine(">> " + entryMetaData.Uid.ToString("X16") + ": " + entryMetaData.Filename + "." + (Magic)entryMetaData.Magic);
 					}
 				}
 			}
+
 			MessageBox.Show("Successfully generated filelist.txt", "Done");
 		}
 	}
